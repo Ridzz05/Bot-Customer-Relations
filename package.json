@@ -4,6 +4,7 @@
   "description": "Telegram Bot untuk mencatat data pelanggan ke Supabase (Vercel Serverless)",
   "main": "api/webhook.js",
   "scripts": {
+    "dev": "node dev.js",
     "start": "node api/webhook.js"
   },
   "dependencies": {

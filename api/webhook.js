@@ -10,10 +10,11 @@ const { createClient } = require('@supabase/supabase-js');
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const OWNER_ID = process.env.OWNER_ID;
 
-if (!BOT_TOKEN || !SUPABASE_URL || !SUPABASE_KEY) {
+if (!BOT_TOKEN || !SUPABASE_URL || !SUPABASE_KEY || !OWNER_ID) {
   throw new Error(
-    'Environment variables BOT_TOKEN, SUPABASE_URL, dan SUPABASE_KEY harus diisi!'
+    'Environment variables BOT_TOKEN, SUPABASE_URL, SUPABASE_KEY, dan OWNER_ID harus diisi!'
   );
 }
 
@@ -21,7 +22,19 @@ const bot = new Telegraf(BOT_TOKEN);
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // =============================================================================
-// Helper: Kirim pesan dengan format HTML
+// Middleware: Hanya owner yang bisa menggunakan bot
+// =============================================================================
+
+bot.use((ctx, next) => {
+  const userId = ctx.from?.id?.toString();
+  if (userId !== OWNER_ID) {
+    return ctx.replyWithHTML('⛔ <b>Akses ditolak.</b>\nBot ini hanya bisa digunakan oleh owner.');
+  }
+  return next();
+});
+
+// =============================================================================
+// Helper Functions
 // =============================================================================
 
 function escapeHtml(text) {
@@ -29,6 +42,16 @@ function escapeHtml(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function parseQuotedArgs(text) {
+  const result = [];
+  const regex = /"([^"]+)"|(\S+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    result.push(match[1] || match[2]);
+  }
+  return result;
 }
 
 // =============================================================================
@@ -40,30 +63,31 @@ bot.start((ctx) => {
   return ctx.replyWithHTML(
     `👋 <b>Halo, ${escapeHtml(nama)}!</b>\n\n` +
       `Saya adalah Bot Manajemen Pelanggan.\n` +
-      `Berikut command yang tersedia:\n\n` +
-      `📦 <code>/add_layanan {nama_layanan}</code>\n` +
-      `   → Menambah kategori layanan baru\n\n` +
-      `👤 <code>/add_pelanggan {nama} {layanan} {durasi}</code>\n` +
-      `   → Menambah data pelanggan\n\n` +
-      `📋 <code>/list_layanan</code>\n` +
-      `   → Melihat daftar layanan yang tersedia`
+      `Berikut perintah yang tersedia:\n\n` +
+      `📦 <b>Tambah Layanan</b>\n` +
+      `<code>tambah layanan [nama layanan]</code>\n` +
+      `Contoh: <code>tambah layanan Internet Fiber</code>\n\n` +
+      `👤 <b>Tambah Pelanggan</b>\n` +
+      `<code>tambah pelanggan [nama] [layanan] [durasi]</code>\n` +
+      `Contoh: <code>tambah pelanggan "Budi" "Internet Fiber" "30 Hari"</code>\n\n` +
+      `📋 <b>Daftar Layanan</b>\n` +
+      `<code>daftar layanan</code>\n\n` +
+      `💡 Gunakan tanda kutip <code>"..."</code> untuk nilai yang mengandung spasi.`
   );
 });
 
 // =============================================================================
-// Command: /add_layanan {nama_layanan}
+// Perintah: tambah layanan {nama_layanan}
 // =============================================================================
 
-bot.command('add_layanan', async (ctx) => {
+bot.hears(/^tambah layanan\s+(.+)/i, async (ctx) => {
   try {
-    const args = ctx.message.text.split(' ').slice(1);
-    const namaLayanan = args.join(' ').trim();
+    const namaLayanan = ctx.match[1].trim();
 
     if (!namaLayanan) {
       return ctx.replyWithHTML(
-        `⚠️ <b>Format salah!</b>\n\n` +
-          `Gunakan: <code>/add_layanan {nama_layanan}</code>\n` +
-          `Contoh: <code>/add_layanan Internet Fiber</code>`
+        `⚠️ <b>Nama layanan tidak boleh kosong!</b>\n\n` +
+          `Contoh: <code>tambah layanan Internet Fiber</code>`
       );
     }
 
@@ -74,13 +98,12 @@ bot.command('add_layanan', async (ctx) => {
       .single();
 
     if (error) {
-      // Handle duplicate (unique constraint violation)
       if (error.code === '23505') {
         return ctx.replyWithHTML(
           `❌ Layanan <b>"${escapeHtml(namaLayanan)}"</b> sudah terdaftar.`
         );
       }
-      console.error('[add_layanan] Supabase error:', error);
+      console.error('[tambah layanan] Supabase error:', error);
       return ctx.replyWithHTML(
         `❌ Gagal menambah layanan.\n<code>${escapeHtml(error.message)}</code>`
       );
@@ -92,30 +115,18 @@ bot.command('add_layanan', async (ctx) => {
         `🆔 <b>ID:</b> ${data.id}`
     );
   } catch (err) {
-    console.error('[add_layanan] Unexpected error:', err);
+    console.error('[tambah layanan] Unexpected error:', err);
     return ctx.replyWithHTML('❌ Terjadi kesalahan internal. Coba lagi nanti.');
   }
 });
 
 // =============================================================================
-// Command: /add_pelanggan {nama} {layanan} {durasi}
+// Perintah: tambah pelanggan {nama} {layanan} {durasi}
 // =============================================================================
 
-bot.command('add_pelanggan', async (ctx) => {
+bot.hears(/^tambah pelanggan\s+(.+)/i, async (ctx) => {
   try {
-    const args = ctx.message.text.split(' ').slice(1);
-
-    if (args.length < 3) {
-      return ctx.replyWithHTML(
-        `⚠️ <b>Format salah!</b>\n\n` +
-          `Gunakan: <code>/add_pelanggan {nama} {layanan} {durasi}</code>\n` +
-          `Contoh: <code>/add_pelanggan "Budi Santoso" "Internet Fiber" "30 Hari"</code>\n\n` +
-          `💡 Gunakan tanda kutip <code>"..."</code> untuk nama/layanan yang mengandung spasi.`
-      );
-    }
-
-    // Parse arguments — support quoted strings
-    const rawText = ctx.message.text.replace(/^\/add_pelanggan\s+/, '');
+    const rawText = ctx.match[1].trim();
     const parsed = parseQuotedArgs(rawText);
 
     if (parsed.length < 3) {
@@ -123,7 +134,7 @@ bot.command('add_pelanggan', async (ctx) => {
         `⚠️ <b>Argumen tidak lengkap!</b>\n\n` +
           `Dibutuhkan 3 argumen: <b>nama</b>, <b>layanan</b>, <b>durasi</b>.\n` +
           `Gunakan tanda kutip <code>"..."</code> untuk nilai yang mengandung spasi.\n\n` +
-          `Contoh: <code>/add_pelanggan "Budi Santoso" "Internet Fiber" "30 Hari"</code>`
+          `Contoh: <code>tambah pelanggan "Budi Santoso" "Internet Fiber" "30 Hari"</code>`
       );
     }
 
@@ -140,7 +151,7 @@ bot.command('add_pelanggan', async (ctx) => {
       return ctx.replyWithHTML(
         `❌ Layanan <b>"${escapeHtml(namaLayanan)}"</b> belum terdaftar!\n\n` +
           `Silakan tambahkan dulu dengan:\n` +
-          `<code>/add_layanan ${escapeHtml(namaLayanan)}</code>`
+          `<code>tambah layanan ${escapeHtml(namaLayanan)}</code>`
       );
     }
 
@@ -156,15 +167,14 @@ bot.command('add_pelanggan', async (ctx) => {
       .single();
 
     if (error) {
-      // Handle foreign key violation (fallback)
       if (error.code === '23503') {
         return ctx.replyWithHTML(
           `❌ Layanan <b>"${escapeHtml(namaLayanan)}"</b> belum terdaftar!\n\n` +
             `Silakan tambahkan dulu dengan:\n` +
-            `<code>/add_layanan ${escapeHtml(namaLayanan)}</code>`
+            `<code>tambah layanan ${escapeHtml(namaLayanan)}</code>`
         );
       }
-      console.error('[add_pelanggan] Supabase error:', error);
+      console.error('[tambah pelanggan] Supabase error:', error);
       return ctx.replyWithHTML(
         `❌ Gagal menambah pelanggan.\n<code>${escapeHtml(error.message)}</code>`
       );
@@ -185,16 +195,16 @@ bot.command('add_pelanggan', async (ctx) => {
         `📅 <b>Tanggal Masuk:</b> ${tanggal}`
     );
   } catch (err) {
-    console.error('[add_pelanggan] Unexpected error:', err);
+    console.error('[tambah pelanggan] Unexpected error:', err);
     return ctx.replyWithHTML('❌ Terjadi kesalahan internal. Coba lagi nanti.');
   }
 });
 
 // =============================================================================
-// Command: /list_layanan
+// Perintah: daftar layanan
 // =============================================================================
 
-bot.command('list_layanan', async (ctx) => {
+bot.hears(/^daftar layanan$/i, async (ctx) => {
   try {
     const { data, error } = await supabase
       .from('layanan')
@@ -202,7 +212,7 @@ bot.command('list_layanan', async (ctx) => {
       .order('id', { ascending: true });
 
     if (error) {
-      console.error('[list_layanan] Supabase error:', error);
+      console.error('[daftar layanan] Supabase error:', error);
       return ctx.replyWithHTML(
         `❌ Gagal mengambil data layanan.\n<code>${escapeHtml(error.message)}</code>`
       );
@@ -211,7 +221,7 @@ bot.command('list_layanan', async (ctx) => {
     if (!data || data.length === 0) {
       return ctx.replyWithHTML(
         `📭 Belum ada layanan terdaftar.\n\n` +
-          `Tambahkan dengan: <code>/add_layanan {nama_layanan}</code>`
+          `Tambahkan dengan: <code>tambah layanan [nama]</code>`
       );
     }
 
@@ -224,25 +234,10 @@ bot.command('list_layanan', async (ctx) => {
         `Total: <b>${data.length}</b> layanan`
     );
   } catch (err) {
-    console.error('[list_layanan] Unexpected error:', err);
+    console.error('[daftar layanan] Unexpected error:', err);
     return ctx.replyWithHTML('❌ Terjadi kesalahan internal. Coba lagi nanti.');
   }
 });
-
-// =============================================================================
-// Helper: Parse quoted arguments
-// Supports: "arg with space" arg2 "arg3 with space"
-// =============================================================================
-
-function parseQuotedArgs(text) {
-  const result = [];
-  const regex = /"([^"]+)"|(\S+)/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    result.push(match[1] || match[2]);
-  }
-  return result;
-}
 
 // =============================================================================
 // Vercel Serverless Handler (Webhook)

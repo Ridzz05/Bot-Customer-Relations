@@ -46,6 +46,7 @@ Buat file `.env` (untuk lokal) atau set di **Vercel Dashboard > Settings > Envir
 | `BOT_TOKEN`    | Token bot dari [@BotFather](https://t.me/BotFather) |
 | `SUPABASE_URL` | URL project Supabase (`https://xxx.supabase.co`) |
 | `SUPABASE_KEY` | Anon key dari Supabase (Settings > API) |
+| `OWNER_ID`     | Telegram User ID owner (cek via [@userinfobot](https://t.me/userinfobot)) |
 
 ---
 
@@ -104,14 +105,14 @@ https://api.telegram.org/bot<BOT_TOKEN>/deleteWebhook
 
 ---
 
-## 🤖 Daftar Command
+## 🤖 Daftar Perintah
 
-| Command | Format | Keterangan |
-| ------- | ------ | ---------- |
+| Perintah | Contoh | Keterangan |
+| -------- | ------ | ---------- |
 | `/start` | `/start` | Menampilkan pesan selamat datang & panduan |
-| `/add_layanan` | `/add_layanan Internet Fiber` | Menambah kategori layanan baru |
-| `/add_pelanggan` | `/add_pelanggan "Budi Santoso" "Internet Fiber" "30 Hari"` | Menambah data pelanggan |
-| `/list_layanan` | `/list_layanan` | Melihat daftar layanan yang tersedia |
+| `tambah layanan` | `tambah layanan Internet Fiber` | Menambah kategori layanan baru |
+| `tambah pelanggan` | `tambah pelanggan "Budi" "Internet Fiber" "30 Hari"` | Menambah data pelanggan |
+| `daftar layanan` | `daftar layanan` | Melihat daftar layanan yang tersedia |
 
 > 💡 Gunakan tanda kutip `"..."` untuk nama/layanan yang mengandung spasi.
 
